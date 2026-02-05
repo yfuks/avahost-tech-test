@@ -50,6 +50,16 @@ export class TicketsService {
     return data as Ticket;
   }
 
+  async findAll(): Promise<Ticket[]> {
+    const supabase = this.ensureClient();
+    const { data, error } = await supabase
+      .from('tickets')
+      .select('id, listing_id, category, status, updated_at')
+      .order('updated_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data ?? []) as Ticket[];
+  }
+
   async findOne(id: string): Promise<Ticket | null> {
     const supabase = this.ensureClient();
     const { data, error } = await supabase

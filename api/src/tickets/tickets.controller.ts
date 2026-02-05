@@ -24,6 +24,11 @@ export class TicketsController {
     });
   }
 
+  @Get()
+  async findAll() {
+    return this.ticketsService.findAll();
+  }
+
   @Get(':id')
   async findOne(@Param('id', ParseUUIDPipe) id: string) {
     const ticket = await this.ticketsService.findOne(id);
