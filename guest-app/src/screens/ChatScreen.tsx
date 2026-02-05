@@ -9,6 +9,8 @@ import {
   TouchableOpacity,
   View,
   ListRenderItem,
+  ActivityIndicator,
+  Pressable,
 } from 'react-native';
 import { Suspense } from 'react';
 import { useChatMutation } from '../hooks/useChatMutation';
@@ -16,9 +18,31 @@ import { getGuestDeviceId } from '../lib/guestDeviceId';
 import { ChatMessage } from '../components/ChatMessage';
 import { ChatLoadingFallback } from '../components/ChatLoadingFallback';
 import { TicketStatus } from '../components/TicketStatus';
+import {
+  getConversations,
+  getConversationMessages,
+  type ConversationListItem,
+} from '../api/conversations';
 import type { ChatMessageUi } from '../types/chat';
 
 const LISTING_ID = 'DEMO';
+
+function formatConversationDate(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const sameDay =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear();
+  if (sameDay) {
+    return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  }
+  return d.toLocaleDateString('fr-FR', {
+    day: 'numeric',
+    month: 'short',
+    year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+  });
+}
 
 export function ChatScreen() {
   const [messages, setMessages] = useState<ChatMessageUi[]>([]);
@@ -27,9 +51,54 @@ export function ChatScreen() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [guestDeviceId, setGuestDeviceId] = useState<string | null>(null);
 
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [conversations, setConversations] = useState<ConversationListItem[]>([]);
+  const [loadingConversations, setLoadingConversations] = useState(false);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+
   useEffect(() => {
     getGuestDeviceId().then(setGuestDeviceId);
   }, []);
+
+  const openPanel = useCallback(() => {
+    setPanelOpen(true);
+    if (guestDeviceId) {
+      setLoadingConversations(true);
+      getConversations(guestDeviceId)
+        .then(setConversations)
+        .catch(() => setConversations([]))
+        .finally(() => setLoadingConversations(false));
+    }
+  }, [guestDeviceId]);
+
+  const startNewChat = useCallback(() => {
+    setConversationId(null);
+    setMessages([]);
+    setCurrentTicketId(null);
+    setPanelOpen(false);
+  }, []);
+
+  const selectConversation = useCallback(
+    async (conv: ConversationListItem) => {
+      setLoadingMessages(true);
+      try {
+        const msgs = await getConversationMessages(conv.id);
+        const ui: ChatMessageUi[] = msgs.map((m) => ({
+          role: m.role,
+          content: m.content,
+        }));
+        setConversationId(conv.id);
+        setMessages(ui);
+        setCurrentTicketId(null);
+        setPanelOpen(false);
+      } catch {
+        setConversations((prev) => prev);
+      } finally {
+        setLoadingMessages(false);
+      }
+    },
+    []
+  );
 
   const mutation = useChatMutation();
 
@@ -77,15 +146,88 @@ export function ChatScreen() {
     <ChatMessage role={item.role} content={item.content} />
   ), []);
 
+  const renderConversationItem: ListRenderItem<ConversationListItem> =
+    useCallback(
+      ({ item }) => (
+        <TouchableOpacity
+          style={[
+            styles.convItem,
+            item.id === conversationId && styles.convItemActive,
+          ]}
+          onPress={() => selectConversation(item)}
+          disabled={loadingMessages}
+        >
+          <Text style={styles.convItemDate} numberOfLines={1}>
+            {formatConversationDate(item.updated_at)}
+          </Text>
+        </TouchableOpacity>
+      ),
+      [conversationId, loadingMessages, selectConversation]
+    );
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
     >
+      {panelOpen ? (
+        <>
+          <View style={styles.panel}>
+            <View style={styles.panelHeader}>
+              <Text style={styles.panelTitle}>Conversations</Text>
+              <TouchableOpacity
+                onPress={() => setPanelOpen(false)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Text style={styles.panelClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={styles.newChatBtn}
+              onPress={startNewChat}
+              disabled={loadingMessages}
+            >
+              <Text style={styles.newChatBtnText}>+ Nouvelle conversation</Text>
+            </TouchableOpacity>
+            {loadingConversations ? (
+              <View style={styles.panelLoading}>
+                <ActivityIndicator size="small" color="#64748b" />
+              </View>
+            ) : (
+              <FlatList
+                data={conversations}
+                renderItem={renderConversationItem}
+                keyExtractor={(item) => item.id}
+                style={styles.convList}
+                contentContainerStyle={styles.convListContent}
+                ListEmptyComponent={
+                  <Text style={styles.convEmpty}>
+                    Aucune conversation passée
+                  </Text>
+                }
+              />
+            )}
+          </View>
+          <Pressable
+            style={styles.panelOverlay}
+            onPress={() => setPanelOpen(false)}
+          />
+        </>
+      ) : null}
+
       <View style={styles.header}>
-        <Text style={styles.title}>Ava</Text>
-        <Text style={styles.subtitle}>Votre assistante séjour</Text>
+        <TouchableOpacity
+          onPress={openPanel}
+          style={styles.menuBtn}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <Text style={styles.menuBtnText}>☰</Text>
+        </TouchableOpacity>
+        <View style={styles.headerTitles}>
+          <Text style={styles.title}>Ava</Text>
+          <Text style={styles.subtitle}>Votre assistante séjour</Text>
+        </View>
       </View>
 
       {currentTicketId ? (
@@ -164,12 +306,106 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
+  panel: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 280,
+    backgroundColor: '#fff',
+    borderRightWidth: 1,
+    borderRightColor: '#e2e8f0',
+    zIndex: 10,
+    paddingTop: 56,
+  },
+  panelOverlay: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    zIndex: 9,
+  },
+  panelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  panelTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#0f172a',
+  },
+  panelClose: {
+    fontSize: 20,
+    color: '#64748b',
+    padding: 4,
+  },
+  newChatBtn: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#0f172a',
+    borderRadius: 10,
+  },
+  newChatBtnText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  panelLoading: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  convList: {
+    flex: 1,
+  },
+  convListContent: {
+    paddingBottom: 24,
+  },
+  convItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  convItemActive: {
+    backgroundColor: '#f1f5f9',
+  },
+  convItemDate: {
+    fontSize: 14,
+    color: '#475569',
+  },
+  convEmpty: {
+    fontSize: 14,
+    color: '#94a3b8',
+    textAlign: 'center',
+    padding: 24,
+  },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingTop: 56,
     paddingBottom: 12,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
+    gap: 12,
+  },
+  menuBtn: {
+    padding: 4,
+  },
+  menuBtnText: {
+    fontSize: 22,
+    color: '#0f172a',
+    fontWeight: '600',
+  },
+  headerTitles: {
+    flex: 1,
   },
   title: {
     fontSize: 24,

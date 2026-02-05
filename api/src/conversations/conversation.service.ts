@@ -86,6 +86,21 @@ export class ConversationService {
     return data as Conversation | null;
   }
 
+  async listByGuestDeviceId(
+    guestDeviceId: string,
+    limit = 50,
+  ): Promise<Conversation[]> {
+    const supabase = this.ensureClient();
+    const { data, error } = await supabase
+      .from('conversations')
+      .select('id, listing_id, guest_device_id, created_at, updated_at')
+      .eq('guest_device_id', guestDeviceId)
+      .order('updated_at', { ascending: false })
+      .limit(limit);
+    if (error) throw new Error(error.message);
+    return (data ?? []) as Conversation[];
+  }
+
   async getOrCreateConversation(
     conversationId: string | undefined,
     listingId?: string,
@@ -105,10 +120,7 @@ export class ConversationService {
         }
       }
     }
-    if (guestDeviceId) {
-      const latest = await this.findLatestConversationByGuest(guestDeviceId);
-      if (latest) return latest;
-    }
+    // No conversation_id or not found: create a new conversation (fresh chat)
     return this.createConversation(listingId, guestDeviceId);
   }
 
