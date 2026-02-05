@@ -1,4 +1,8 @@
-import type { Ticket, TicketStatus } from '@/types/tickets';
+import type {
+  ConversationMessage,
+  Ticket,
+  TicketStatus,
+} from '@/types/tickets';
 
 const getBaseUrl = () => {
   if (typeof window !== 'undefined') {
@@ -9,6 +13,18 @@ const getBaseUrl = () => {
 
 export async function fetchTickets(): Promise<Ticket[]> {
   const res = await fetch(`${getBaseUrl()}/tickets`);
+  if (!res.ok) {
+    throw new Error(`Erreur ${res.status}: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function fetchConversationMessages(
+  ticketId: string
+): Promise<ConversationMessage[]> {
+  const res = await fetch(
+    `${getBaseUrl()}/tickets/${ticketId}/conversation-messages`
+  );
   if (!res.ok) {
     throw new Error(`Erreur ${res.status}: ${res.statusText}`);
   }

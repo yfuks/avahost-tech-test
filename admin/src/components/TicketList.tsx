@@ -1,8 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import type { Ticket, TicketStatus } from '@/types/tickets';
-import { fetchTickets, updateTicketStatus } from '@/lib/api';
+import React, { useCallback, useEffect, useState } from 'react';
+import type {
+  ConversationMessage,
+  Ticket,
+  TicketStatus,
+} from '@/types/tickets';
+import {
+  fetchConversationMessages,
+  fetchTickets,
+  updateTicketStatus,
+} from '@/lib/api';
 
 const STATUS_LABELS: Record<TicketStatus, string> = {
   created: 'Créé',
@@ -15,6 +23,12 @@ export function TicketList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [messagesByTicket, setMessagesByTicket] = useState<
+    Record<string, ConversationMessage[]>
+  >({});
+  const [loadingMessages, setLoadingMessages] = useState<string | null>(null);
+  const [messagesError, setMessagesError] = useState<string | null>(null);
 
   const loadTickets = async () => {
     setLoading(true);
@@ -46,6 +60,31 @@ export function TicketList() {
     } finally {
       setUpdatingId(null);
     }
+  };
+
+  const loadConversation = useCallback(async (ticketId: string) => {
+    if (messagesByTicket[ticketId]) return;
+    setLoadingMessages(ticketId);
+    setMessagesError(null);
+    try {
+      const messages = await fetchConversationMessages(ticketId);
+      setMessagesByTicket((prev) => ({ ...prev, [ticketId]: messages }));
+    } catch (e) {
+      setMessagesError(
+        e instanceof Error ? e.message : 'Impossible de charger l’historique'
+      );
+    } finally {
+      setLoadingMessages(null);
+    }
+  }, [messagesByTicket]);
+
+  const toggleHistory = (ticket: Ticket) => {
+    if (expandedId === ticket.id) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(ticket.id);
+    loadConversation(ticket.id);
   };
 
   const formatDate = (iso: string) => {
@@ -97,6 +136,7 @@ export function TicketList() {
         <table className="w-full min-w-[520px] text-left text-sm">
           <thead>
             <tr className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/80">
+              <th className="w-10 px-2 py-3" aria-label="Historique" />
               <th className="px-4 py-3 font-medium text-zinc-700 dark:text-zinc-300">
                 ID
               </th>
@@ -116,41 +156,111 @@ export function TicketList() {
           </thead>
           <tbody>
             {tickets.map((ticket) => (
-              <tr
-                key={ticket.id}
-                className="border-b border-zinc-100 last:border-0 dark:border-zinc-800"
-              >
-                <td className="px-4 py-3 font-mono text-xs text-zinc-500 dark:text-zinc-400">
-                  {ticket.id.slice(0, 8)}…
-                </td>
-                <td className="px-4 py-3 text-zinc-800 dark:text-zinc-200">
-                  {ticket.listing_id}
-                </td>
-                <td className="px-4 py-3 text-zinc-800 dark:text-zinc-200">
-                  {ticket.category}
-                </td>
-                <td className="px-4 py-3">
-                  <select
-                    value={ticket.status}
-                    onChange={(e) =>
-                      handleStatusChange(ticket, e.target.value as TicketStatus)
-                    }
-                    disabled={updatingId === ticket.id}
-                    className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-zinc-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200"
-                  >
-                    {(['created', 'in_progress', 'resolved'] as const).map(
-                      (s) => (
-                        <option key={s} value={s}>
-                          {STATUS_LABELS[s]}
-                        </option>
-                      )
-                    )}
-                  </select>
-                </td>
-                <td className="px-4 py-3 text-zinc-500 dark:text-zinc-400">
-                  {formatDate(ticket.updated_at)}
-                </td>
-              </tr>
+              <React.Fragment key={ticket.id}>
+                <tr className="border-b border-zinc-100 dark:border-zinc-800">
+                  <td className="w-10 px-2 py-3">
+                    <button
+                      type="button"
+                      onClick={() => toggleHistory(ticket)}
+                      className="rounded p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-700 dark:hover:text-zinc-300"
+                      title="Voir l’historique de la conversation"
+                      aria-expanded={expandedId === ticket.id}
+                    >
+                      <span
+                        className={`inline-block transition-transform ${expandedId === ticket.id ? 'rotate-90' : ''}`}
+                      >
+                        ▶
+                      </span>
+                    </button>
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-zinc-500 dark:text-zinc-400">
+                    {ticket.id.slice(0, 8)}…
+                  </td>
+                  <td className="px-4 py-3 text-zinc-800 dark:text-zinc-200">
+                    {ticket.listing_id}
+                  </td>
+                  <td className="px-4 py-3 text-zinc-800 dark:text-zinc-200">
+                    {ticket.category}
+                  </td>
+                  <td className="px-4 py-3">
+                    <select
+                      value={ticket.status}
+                      onChange={(e) =>
+                        handleStatusChange(
+                          ticket,
+                          e.target.value as TicketStatus
+                        )
+                      }
+                      disabled={updatingId === ticket.id}
+                      className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-zinc-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200"
+                    >
+                      {(['created', 'in_progress', 'resolved'] as const).map(
+                        (s) => (
+                          <option key={s} value={s}>
+                            {STATUS_LABELS[s]}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </td>
+                  <td className="px-4 py-3 text-zinc-500 dark:text-zinc-400">
+                    {formatDate(ticket.updated_at)}
+                  </td>
+                </tr>
+                {expandedId === ticket.id ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="border-b border-zinc-100 bg-zinc-50/80 px-4 py-4 dark:border-zinc-800 dark:bg-zinc-800/50"
+                    >
+                      <div className="max-h-80 overflow-y-auto rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+                        <h3 className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                          Historique de la conversation
+                        </h3>
+                        {loadingMessages === ticket.id ? (
+                          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                            Chargement…
+                          </p>
+                        ) : messagesError ? (
+                          <p className="text-sm text-red-600 dark:text-red-400">
+                            {messagesError}
+                          </p>
+                        ) : (messagesByTicket[ticket.id] ?? []).length === 0 ? (
+                          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                            Aucun message enregistré pour ce ticket.
+                          </p>
+                        ) : (
+                          <ul className="space-y-3">
+                            {(messagesByTicket[ticket.id] ?? []).map(
+                              (msg: ConversationMessage) => (
+                                <li
+                                  key={msg.id}
+                                  className={`rounded-lg px-3 py-2 text-sm ${
+                                    msg.role === 'user'
+                                      ? 'ml-0 mr-8 bg-blue-50 text-zinc-800 dark:bg-blue-950/40 dark:text-zinc-200'
+                                      : 'ml-8 mr-0 bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200'
+                                  }`}
+                                >
+                                  <span className="font-medium text-zinc-500 dark:text-zinc-400">
+                                    {msg.role === 'user'
+                                      ? 'Voyageur'
+                                      : 'Ava'}
+                                    {' · '}
+                                    {formatDate(msg.created_at)}
+                                  </span>
+                                  <p className="mt-1 whitespace-pre-wrap break-words">
+                                    {msg.content}
+                                  </p>
+                                </li>
+                              )
+                            )}
+                          </ul>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ) : null}
+              </React.Fragment>
             ))}
           </tbody>
         </table>

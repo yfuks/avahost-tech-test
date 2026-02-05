@@ -9,6 +9,7 @@ export interface Ticket {
   category: string;
   status: TicketStatus;
   updated_at: string;
+  conversation_id?: string | null;
 }
 
 export interface CreateTicketInput {
@@ -42,7 +43,7 @@ export class TicketsService {
     if (input.conversation_id) {
       const existing = await supabase
         .from('tickets')
-        .select('id, listing_id, category, status, updated_at')
+        .select('id, listing_id, category, status, updated_at, conversation_id')
         .eq('conversation_id', input.conversation_id)
         .in('status', ['created', 'in_progress'])
         .maybeSingle();
@@ -58,7 +59,7 @@ export class TicketsService {
         conversation_id: input.conversation_id ?? null,
         status: 'created',
       })
-      .select('id, listing_id, category, status, updated_at')
+      .select('id, listing_id, category, status, updated_at, conversation_id')
       .single();
     if (error) {
       if (
@@ -67,7 +68,7 @@ export class TicketsService {
       ) {
         const existing = await supabase
           .from('tickets')
-          .select('id, listing_id, category, status, updated_at')
+          .select('id, listing_id, category, status, updated_at, conversation_id')
           .eq('conversation_id', input.conversation_id)
           .in('status', ['created', 'in_progress'])
           .maybeSingle();
@@ -82,7 +83,7 @@ export class TicketsService {
     const supabase = this.ensureClient();
     const { data, error } = await supabase
       .from('tickets')
-      .select('id, listing_id, category, status, updated_at')
+      .select('id, listing_id, category, status, updated_at, conversation_id')
       .order('updated_at', { ascending: false });
     if (error) throw new Error(error.message);
     return (data ?? []) as Ticket[];
@@ -92,7 +93,7 @@ export class TicketsService {
     const supabase = this.ensureClient();
     const { data, error } = await supabase
       .from('tickets')
-      .select('id, listing_id, category, status, updated_at')
+      .select('id, listing_id, category, status, updated_at, conversation_id')
       .eq('id', id)
       .single();
     if (error) {
@@ -108,7 +109,7 @@ export class TicketsService {
       .from('tickets')
       .update({ status, updated_at: new Date().toISOString() })
       .eq('id', id)
-      .select('id, listing_id, category, status, updated_at')
+      .select('id, listing_id, category, status, updated_at, conversation_id')
       .single();
     if (error) throw new Error(error.message);
     return data as Ticket;

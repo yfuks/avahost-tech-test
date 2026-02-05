@@ -112,6 +112,17 @@ export class ConversationService {
     return this.createConversation(listingId, guestDeviceId);
   }
 
+  async getMessages(conversationId: string): Promise<ConversationMessage[]> {
+    const supabase = this.ensureClient();
+    const { data, error } = await supabase
+      .from('conversation_messages')
+      .select('id, conversation_id, role, content, created_at')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data ?? []) as ConversationMessage[];
+  }
+
   async addMessage(
     conversationId: string,
     role: MessageRole,

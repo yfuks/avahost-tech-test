@@ -11,6 +11,7 @@ import {
   MessageEvent,
 } from '@nestjs/common';
 import { map, Observable } from 'rxjs';
+import { ConversationService } from '../conversations/conversation.service';
 import { TicketsService, type TicketStatus } from './tickets.service';
 import { TicketUpdatesService } from './ticket-updates.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
@@ -21,6 +22,7 @@ export class TicketsController {
   constructor(
     private readonly ticketsService: TicketsService,
     private readonly ticketUpdates: TicketUpdatesService,
+    private readonly conversationService: ConversationService,
   ) {}
 
   @Post()
@@ -53,6 +55,18 @@ export class TicketsController {
         }),
       ),
     );
+  }
+
+  /**
+   * Conversation history for this ticket (admin back office).
+   * Declared before GET :id so that "conversation-messages" is not captured as id.
+   */
+  @Get(':id/conversation-messages')
+  async getConversationMessages(@Param('id', ParseUUIDPipe) id: string) {
+    const ticket = await this.ticketsService.findOne(id);
+    if (!ticket) throw new NotFoundException('Ticket introuvable');
+    if (!ticket.conversation_id) return [];
+    return this.conversationService.getMessages(ticket.conversation_id);
   }
 
   @Get(':id')
