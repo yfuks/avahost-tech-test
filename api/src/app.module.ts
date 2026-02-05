@@ -1,11 +1,17 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ChatModule } from './chat/chat.module';
+import { TicketsModule } from './tickets/tickets.module';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: ['.env', '../.env'],
+    }),
     ThrottlerModule.forRoot([
       {
         name: 'short',
@@ -19,6 +25,7 @@ import { ChatModule } from './chat/chat.module';
       },
     ]),
     ChatModule,
+    TicketsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
