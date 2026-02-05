@@ -103,6 +103,40 @@ export class TicketsService {
     return data as Ticket;
   }
 
+  /** Returns the ticket for this conversation (unresolved first, else most recent). */
+  async findByConversationId(conversationId: string): Promise<Ticket | null> {
+    const supabase = this.ensureClient();
+    const { data, error } = await supabase
+      .from('tickets')
+      .select('id, listing_id, category, status, updated_at, conversation_id')
+      .eq('conversation_id', conversationId)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data as Ticket | null;
+  }
+
+  /** Returns at most one ticket per conversation (most recent by updated_at). */
+  async findByConversationIds(conversationIds: string[]): Promise<Ticket[]> {
+    if (conversationIds.length === 0) return [];
+    const supabase = this.ensureClient();
+    const { data, error } = await supabase
+      .from('tickets')
+      .select('id, listing_id, category, status, updated_at, conversation_id')
+      .in('conversation_id', conversationIds)
+      .order('updated_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    const list = (data ?? []) as Ticket[];
+    const byConv = new Map<string, Ticket>();
+    for (const t of list) {
+      if (t.conversation_id && !byConv.has(t.conversation_id)) {
+        byConv.set(t.conversation_id, t);
+      }
+    }
+    return Array.from(byConv.values());
+  }
+
   async updateStatus(id: string, status: TicketStatus): Promise<Ticket> {
     const supabase = this.ensureClient();
     const { data, error } = await supabase

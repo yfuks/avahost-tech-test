@@ -11,4 +11,5 @@ export interface Ticket {
   category: string;
   status: TicketStatus;
   updated_at: string;
+  conversation_id?: string | null;
 }

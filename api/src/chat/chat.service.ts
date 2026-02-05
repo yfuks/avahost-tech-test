@@ -14,7 +14,6 @@ export type StreamChatEvent =
 
 type ValidateConfirmationCodeArgs = { code: string };
 type CreateTicketArgs = { listing_id: string; category: string };
-type GetTicketArgs = { ticket_id: string };
 
 /** Runnable tool shape for openai.chat.completions.runTools (includes parse + function). */
 type RunnableTool = {
@@ -178,35 +177,6 @@ export class ChatService {
               conversation_id: conversationId ?? undefined,
             });
             return { id: ticket.id, status: ticket.status };
-          },
-        },
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'get_ticket',
-          description:
-            "Récupère le statut d'un ticket existant. À utiliser quand le voyageur demande un suivi ou le statut de son ticket (créé, en cours, résolu).",
-          parameters: {
-            type: 'object',
-            properties: {
-              ticket_id: {
-                type: 'string',
-                description: 'UUID du ticket (fourni lors de la création)',
-              },
-            },
-            required: ['ticket_id'],
-          },
-          parse: (input: string) => JSON.parse(input) as GetTicketArgs,
-          function: async (args: unknown) => {
-            const a = args as GetTicketArgs;
-            const ticket = await ticketsService.findOne(a.ticket_id);
-            if (!ticket) return { error: 'Ticket introuvable' };
-            return {
-              id: ticket.id,
-              status: ticket.status,
-              updated_at: ticket.updated_at,
-            };
           },
         },
       },

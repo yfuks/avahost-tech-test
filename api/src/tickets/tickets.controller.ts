@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   ParseUUIDPipe,
   NotFoundException,
   Sse,
@@ -34,7 +35,24 @@ export class TicketsController {
   }
 
   @Get()
-  async findAll() {
+  async findAll(
+    @Query('conversation_id') conversationId?: string,
+    @Query('guest_device_id') guestDeviceId?: string,
+  ) {
+    if (conversationId?.trim()) {
+      const ticket = await this.ticketsService.findByConversationId(
+        conversationId.trim(),
+      );
+      if (!ticket) throw new NotFoundException('Aucun ticket pour cette conversation');
+      return ticket;
+    }
+    if (guestDeviceId?.trim()) {
+      const conversations = await this.conversationService.listByGuestDeviceId(
+        guestDeviceId.trim(),
+      );
+      const ids = conversations.map((c) => c.id);
+      return this.ticketsService.findByConversationIds(ids);
+    }
     return this.ticketsService.findAll();
   }
 

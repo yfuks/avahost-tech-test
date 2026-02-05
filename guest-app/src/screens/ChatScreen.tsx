@@ -23,6 +23,7 @@ import {
   getConversationMessages,
   type ConversationListItem,
 } from '../api/conversations';
+import { getTicketByConversationId } from '../api/tickets';
 import type { ChatMessageUi } from '../types/chat';
 
 const LISTING_ID = 'DEMO';
@@ -44,6 +45,24 @@ function formatConversationDate(iso: string): string {
   });
 }
 
+function formatConversationTitle(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const sameDay =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear();
+  if (sameDay) {
+    return `Conversation du ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+  }
+  const dateStr = d.toLocaleDateString('fr-FR', {
+    day: 'numeric',
+    month: 'long',
+    year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+  });
+  return `Conversation du ${dateStr}`;
+}
+
 export function ChatScreen() {
   const [messages, setMessages] = useState<ChatMessageUi[]>([]);
   const [input, setInput] = useState('');
@@ -59,6 +78,17 @@ export function ChatScreen() {
   useEffect(() => {
     getGuestDeviceId().then(setGuestDeviceId);
   }, []);
+
+  // Derive ticket for current conversation so user sees status without entering ticket ID
+  useEffect(() => {
+    if (!conversationId) {
+      setCurrentTicketId(null);
+      return;
+    }
+    getTicketByConversationId(conversationId)
+      .then((ticket) => setCurrentTicketId(ticket?.id ?? null))
+      .catch(() => setCurrentTicketId(null));
+  }, [conversationId]);
 
   const openPanel = useCallback(() => {
     setPanelOpen(true);
@@ -89,7 +119,6 @@ export function ChatScreen() {
         }));
         setConversationId(conv.id);
         setMessages(ui);
-        setCurrentTicketId(null);
         setPanelOpen(false);
       } catch {
         setConversations((prev) => prev);
@@ -126,8 +155,12 @@ export function ChatScreen() {
             ...prev,
             { role: 'assistant', content: result.content },
           ]);
-          if (result.conversation_id)
+          if (result.conversation_id) {
             setConversationId(result.conversation_id);
+            getTicketByConversationId(result.conversation_id)
+              .then((ticket) => setCurrentTicketId(ticket?.id ?? null))
+              .catch(() => {});
+          }
         },
         onError: () => {
           setMessages((prev) => [
@@ -157,6 +190,9 @@ export function ChatScreen() {
           onPress={() => selectConversation(item)}
           disabled={loadingMessages}
         >
+          <Text style={styles.convItemTitle} numberOfLines={1}>
+            {formatConversationTitle(item.updated_at)}
+          </Text>
           <Text style={styles.convItemDate} numberOfLines={1}>
             {formatConversationDate(item.updated_at)}
           </Text>
@@ -286,17 +322,6 @@ export function ChatScreen() {
         </TouchableOpacity>
       </View>
 
-      {__DEV__ ? (
-        <View style={styles.devRow}>
-          <TextInput
-            style={styles.devInput}
-            placeholder="ID ticket (UUID) pour suivi"
-            placeholderTextColor="#94a3b8"
-            value={currentTicketId ?? ''}
-            onChangeText={(t) => setCurrentTicketId(t.trim() || null)}
-          />
-        </View>
-      ) : null}
     </KeyboardAvoidingView>
   );
 }
@@ -376,9 +401,15 @@ const styles = StyleSheet.create({
   convItemActive: {
     backgroundColor: '#f1f5f9',
   },
+  convItemTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0f172a',
+    marginBottom: 4,
+  },
   convItemDate: {
-    fontSize: 14,
-    color: '#475569',
+    fontSize: 13,
+    color: '#64748b',
   },
   convEmpty: {
     fontSize: 14,
@@ -485,17 +516,5 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
     fontSize: 16,
-  },
-  devRow: {
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-  },
-  devInput: {
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 8,
-    padding: 8,
-    fontSize: 12,
-    color: '#0f172a',
   },
 });
