@@ -1,5 +1,6 @@
 .pnpm-store
 package-lock.json
+dist
 .env
 .env.local
 .env.development.local
