@@ -80,10 +80,12 @@ Implement the flow so that each “relance” (follow-up) from the user advances
 
 ```
 avahost-tech-test/
-├── guest-app/     # Expo app (Chat screen, Ava, confirmation code, tickets)
-├── api/           # NestJS ticketing API (POST/GET/PATCH tickets)
-├── admin/         # Next.js back office (list tickets, PATCH status)
-├── supabase/      # Local Supabase (migrations, config, seed)
+├── package.json         # Root scripts (pnpm): dev, dev:api, dev:admin, etc.
+├── pnpm-workspace.yaml  # pnpm workspace (admin, api, guest-app)
+├── guest-app/           # Expo app (Chat screen, Ava, confirmation code, tickets)
+├── api/                 # NestJS ticketing API (POST/GET/PATCH tickets)
+├── admin/               # Next.js back office (list tickets, PATCH status)
+├── supabase/            # Local Supabase (migrations, config, seed)
 └── AGENTS.md
 ```
 
@@ -91,6 +93,22 @@ avahost-tech-test/
 - **API:** `api/` — NestJS. Run: `cd api && npm run start` (dev: `npm run start:dev`).
 - **Admin:** `admin/` — Next.js (App Router, TypeScript, Tailwind). Run: `cd admin && npm run dev`.
 - **Local Supabase:** From project root, run `supabase start` (requires Docker). See `supabase/README.md` for URLs and keys.
+
+### Running from the root (pnpm)
+
+The repo is configured as a **pnpm workspace**. From the project root, after `pnpm install` (installs all workspace dependencies):
+
+| Command | Description |
+|--------|-------------|
+| `pnpm run dev` | Start **everything**: Supabase, API, Admin, and Guest app (web). Requires Docker for Supabase. |
+| `pnpm run dev:services` | Start only API + Admin (e.g. when Supabase is already running). |
+| `pnpm run dev:api` | Start NestJS API (watch mode). |
+| `pnpm run dev:admin` | Start Next.js admin. |
+| `pnpm run dev:guest` | Start Expo guest app (choose platform in CLI). |
+| `pnpm run dev:guest:ios` | Start Expo guest app for iOS. |
+| `pnpm run dev:guest:web` | Start Expo guest app in the browser. |
+| `pnpm run supabase:start` | Start local Supabase only. |
+| `pnpm run install:all` | Install dependencies in all workspaces (same as `pnpm install` at root). |
 
 ### Supabase — `tickets` table
 

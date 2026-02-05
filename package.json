@@ -1,0 +1,18 @@
+{
+  "name": "avahost-tech-test",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n supabase,api,admin,guest -c blue,green,yellow,magenta \"supabase start\" \"pnpm --filter api run start:dev\" \"pnpm --filter admin run dev\" \"pnpm --filter guest-app run web\"",
+    "dev:services": "concurrently -n api,admin \"pnpm --filter api run start:dev\" \"pnpm --filter admin run dev\"",
+    "dev:api": "pnpm --filter api run start:dev",
+    "dev:admin": "pnpm --filter admin run dev",
+    "dev:guest": "pnpm --filter guest-app run start",
+    "dev:guest:ios": "pnpm --filter guest-app run ios",
+    "dev:guest:web": "pnpm --filter guest-app run web",
+    "supabase:start": "supabase start",
+    "install:all": "pnpm install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}
