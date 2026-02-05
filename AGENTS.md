@@ -15,6 +15,8 @@ This document guides AI agents and developers working on the **Ava** project: a 
 
 A mock is provided for the backend with data for a typical listing. All sensitive data rules apply to this mock.
 
+- **Language:** The AI (Ava), all messages, and the user-facing content are in **French**. No translation is needed anywhere in the project.
+
 ---
 
 ## 2. User types — scenarios are not the same
@@ -156,6 +158,7 @@ Use these for the **NestJS** ticketing API.
 | Ticket statuses | `created`, `in_progress`, `resolved` |
 | Sensitive data | Only after code validation; from `privateHostData` in mock |
 | Internet flow | 1) Wi‑Fi credentials → 2) Self-repair → 3) Create ticket + follow-up + “resolved” message |
+| Language | **French** — AI, messages, and UI; no translation needed |
 
 ---
 
