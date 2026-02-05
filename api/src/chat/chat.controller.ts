@@ -33,8 +33,11 @@ export class ChatController {
     if (typeof res.flushHeaders === 'function') res.flushHeaders();
 
     try {
-      for await (const chunk of this.chatService.streamChat(dto)) {
-        const data = JSON.stringify({ content: chunk });
+      for await (const event of this.chatService.streamChat(dto)) {
+        const data =
+          event.type === 'conversation_id'
+            ? JSON.stringify({ conversation_id: event.conversation_id })
+            : JSON.stringify({ content: event.content });
         res.write(`data: ${data}\n\n`);
         if (typeof res.flush === 'function') res.flush();
       }

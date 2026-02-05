@@ -5,6 +5,8 @@ import {
   ValidateNested,
   IsString,
   MaxLength,
+  IsOptional,
+  IsUUID,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -22,4 +24,21 @@ export class StreamChatDto {
   @ValidateNested({ each: true })
   @Type(() => ChatMessageDto)
   messages!: ChatMessageDto[];
+
+  /** Optional: reuse an existing conversation (messages are persisted). */
+  @IsOptional()
+  @IsUUID()
+  conversation_id?: string;
+
+  /** Optional: listing id for new conversations (e.g. "DEMO"). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  listing_id?: string;
+
+  /** Optional: guest device unique id (e.g. phone UUID) so conversations are scoped per device. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(256)
+  guest_device_id?: string;
 }

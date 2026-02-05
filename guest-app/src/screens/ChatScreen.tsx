@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -12,15 +12,24 @@ import {
 } from 'react-native';
 import { Suspense } from 'react';
 import { useChatMutation } from '../hooks/useChatMutation';
+import { getGuestDeviceId } from '../lib/guestDeviceId';
 import { ChatMessage } from '../components/ChatMessage';
 import { ChatLoadingFallback } from '../components/ChatLoadingFallback';
 import { TicketStatus } from '../components/TicketStatus';
 import type { ChatMessageUi } from '../types/chat';
 
+const LISTING_ID = 'DEMO';
+
 export function ChatScreen() {
   const [messages, setMessages] = useState<ChatMessageUi[]>([]);
   const [input, setInput] = useState('');
   const [currentTicketId, setCurrentTicketId] = useState<string | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [guestDeviceId, setGuestDeviceId] = useState<string | null>(null);
+
+  useEffect(() => {
+    getGuestDeviceId().then(setGuestDeviceId);
+  }, []);
 
   const mutation = useChatMutation();
 
@@ -36,13 +45,20 @@ export function ChatScreen() {
     const apiMessages = nextMessages.map((m) => ({ content: m.content }));
 
     mutation.mutate(
-      { messages: apiMessages },
       {
-        onSuccess: (assistantContent) => {
+        messages: apiMessages,
+        conversation_id: conversationId ?? undefined,
+        listing_id: LISTING_ID,
+        guest_device_id: guestDeviceId ?? undefined,
+      },
+      {
+        onSuccess: (result) => {
           setMessages((prev) => [
             ...prev,
-            { role: 'assistant', content: assistantContent },
+            { role: 'assistant', content: result.content },
           ]);
+          if (result.conversation_id)
+            setConversationId(result.conversation_id);
         },
         onError: () => {
           setMessages((prev) => [
@@ -55,7 +71,7 @@ export function ChatScreen() {
         },
       }
     );
-  }, [input, messages, mutation]);
+  }, [input, messages, mutation, conversationId, guestDeviceId]);
 
   const renderItem: ListRenderItem<ChatMessageUi> = useCallback(({ item }) => (
     <ChatMessage role={item.role} content={item.content} />

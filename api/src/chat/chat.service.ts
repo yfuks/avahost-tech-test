@@ -5,7 +5,12 @@ import { AVA_SYSTEM_PROMPT } from './prompts/ava-system.prompt';
 import { sanitizeUserContent } from './sanitize-user-content';
 import type { StreamChatDto } from './dto/stream-chat.dto';
 import { TicketsService } from '../tickets/tickets.service';
+import { ConversationService } from '../conversations/conversation.service';
 import listingMock from '../../mocks/listingMock';
+
+export type StreamChatEvent =
+  | { type: 'conversation_id'; conversation_id: string }
+  | { type: 'content'; content: string };
 
 type ValidateConfirmationCodeArgs = { code: string };
 type CreateTicketArgs = { listing_id: string; category: string };
@@ -27,16 +32,46 @@ type RunnableTool = {
 export class ChatService {
   private readonly openai: OpenAI | null = null;
 
-  constructor(private readonly ticketsService: TicketsService) {
+  constructor(
+    private readonly ticketsService: TicketsService,
+    private readonly conversationService: ConversationService,
+  ) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (apiKey) {
       this.openai = new OpenAI({ apiKey });
     }
   }
 
-  async *streamChat(dto: StreamChatDto): AsyncGenerator<string, void, unknown> {
+  async *streamChat(
+    dto: StreamChatDto,
+  ): AsyncGenerator<StreamChatEvent, void, unknown> {
     if (!this.openai) {
       throw new Error('OPENAI_API_KEY non configurée');
+    }
+
+    let conversationId: string | null = null;
+    try {
+      const conversation =
+        await this.conversationService.getOrCreateConversation(
+          dto.conversation_id,
+          dto.listing_id,
+          dto.guest_device_id,
+        );
+      conversationId = conversation.id;
+      const lastMessage = dto.messages[dto.messages.length - 1];
+      if (lastMessage?.content) {
+        await this.conversationService.addMessage(
+          conversation.id,
+          'user',
+          sanitizeUserContent(lastMessage.content),
+        );
+      }
+    } catch {
+      // If Supabase is not configured, continue without persisting
+    }
+
+    if (conversationId) {
+      yield { type: 'conversation_id', conversation_id: conversationId };
     }
 
     const messages: ChatCompletionMessageParam[] = [
@@ -184,10 +219,24 @@ export class ChatService {
       max_tokens: 2048,
     });
 
+    let fullContent = '';
     for await (const chunk of runner) {
       const delta = chunk.choices[0]?.delta?.content;
       if (typeof delta === 'string' && delta.length > 0) {
-        yield delta;
+        fullContent += delta;
+        yield { type: 'content', content: delta };
+      }
+    }
+
+    if (conversationId && fullContent.trim()) {
+      try {
+        await this.conversationService.addMessage(
+          conversationId,
+          'assistant',
+          fullContent.trim(),
+        );
+      } catch {
+        // Ignore persist errors
       }
     }
   }
