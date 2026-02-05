@@ -106,7 +106,6 @@ The repo is configured as a **pnpm workspace**. From the project root, after `pn
 | `pnpm run dev:admin` | Start Next.js admin. |
 | `pnpm run dev:guest` | Start Expo guest app (choose platform in CLI). |
 | `pnpm run dev:guest:ios` | Start Expo guest app for iOS. |
-| `pnpm run dev:guest:web` | Start Expo guest app in the browser. |
 | `pnpm run supabase:start` | Start local Supabase only. |
 | `pnpm run install:all` | Install dependencies in all workspaces (same as `pnpm install` at root). |
 
