@@ -7,14 +7,21 @@ import {
   Post,
   ParseUUIDPipe,
   NotFoundException,
+  Sse,
+  MessageEvent,
 } from '@nestjs/common';
+import { map, Observable } from 'rxjs';
 import { TicketsService, type TicketStatus } from './tickets.service';
+import { TicketUpdatesService } from './ticket-updates.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 
 @Controller('tickets')
 export class TicketsController {
-  constructor(private readonly ticketsService: TicketsService) {}
+  constructor(
+    private readonly ticketsService: TicketsService,
+    private readonly ticketUpdates: TicketUpdatesService,
+  ) {}
 
   @Post()
   async create(@Body() dto: CreateTicketDto) {
@@ -29,6 +36,25 @@ export class TicketsController {
     return this.ticketsService.findAll();
   }
 
+  /**
+   * SSE stream: guest app subscribes here to be notified when admin changes ticket status.
+   * Declared before GET :id so that "updates" is not captured as id.
+   */
+  @Get(':id/updates')
+  @Sse()
+  streamUpdates(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Observable<MessageEvent> {
+    return this.ticketUpdates.subscribe(id).pipe(
+      map(
+        (ticket): MessageEvent => ({
+          data: JSON.stringify(ticket),
+          type: 'ticket_updated',
+        }),
+      ),
+    );
+  }
+
   @Get(':id')
   async findOne(@Param('id', ParseUUIDPipe) id: string) {
     const ticket = await this.ticketsService.findOne(id);
@@ -41,6 +67,11 @@ export class TicketsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateTicketDto,
   ) {
-    return this.ticketsService.updateStatus(id, dto.status as TicketStatus);
+    const ticket = await this.ticketsService.updateStatus(
+      id,
+      dto.status as TicketStatus,
+    );
+    this.ticketUpdates.broadcast(ticket);
+    return ticket;
   }
 }
