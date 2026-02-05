@@ -43,7 +43,7 @@ When implementing or describing flows, always specify whether the scenario is fo
   - Ava answers **only** with **public listing data** (`publicListingData` from the mock).
   - If the user asks for something that requires sensitive info (e.g. Wi‑Fi password, lockbox code), Ava **asks for the confirmation code** and does not reveal that data until it is provided and validated.
 
-Sensitive data lives in `privateHostData` in the mock (e.g. Wi‑Fi credentials, lockbox code, emergency contacts). Public data is everything under `publicListingData`.
+Sensitive data lives in `privateHostData` in the mock (e.g. Wi‑Fi credentials, lockbox code, emergency contacts). Public data is everything under `publicListingData`. Ava fetches this data via tools: **get_public_listing_data** (no code) and **get_private_host_data** (only after the guest has provided the code). See §5 “Ava tools (listing data & tickets)” for the full list.
 
 ---
 
@@ -83,7 +83,8 @@ avahost-tech-test/
 ├── package.json         # Root scripts (pnpm): dev, dev:api, dev:admin, etc.
 ├── pnpm-workspace.yaml  # pnpm workspace (admin, api, guest-app)
 ├── guest-app/           # Expo app (Chat screen, Ava, confirmation code, tickets)
-├── api/                 # NestJS ticketing API (POST/GET/PATCH tickets)
+├── api/                 # NestJS ticketing API (POST/GET/PATCH tickets, chat/stream)
+│   └── mocks/           # listingMock.ts: publicListingData + privateHostData for Ava tools
 ├── admin/               # Next.js back office (list tickets, PATCH status)
 ├── supabase/            # Local Supabase (migrations, config, seed)
 └── AGENTS.md
@@ -144,9 +145,30 @@ The **guest app** talks to Ava via a **streaming** chat endpoint. Only the Expo 
   - **Input sanitization:** Every message `content` is sanitized server-side (`api/src/chat/sanitize-user-content.ts`) before being sent to the LLM: trim and normalize whitespace, collapse excessive newlines, strip control characters, enforce max length. Reduces noise and some prompt-injection surface; the system prompt still enforces that the guest cannot override rules.
   - **No client-controlled roles:** Only message `content` is accepted; roles are assigned server-side. Prevents abuse (e.g. fake system prompts).
   - **Rate limiting:** The route is protected by `ThrottlerGuard` with a **chat** limit: **20 requests per 60 seconds** (per client/IP). Prevents abuse and caps OpenAI usage.
-  - **No authentication:** Guests are not logged in; the confirmation code is handled **inside the conversation** (Ava validates it via the versioned system prompt). The API does not check the code.
+  - **No authentication:** Guests are not logged in; the confirmation code is **never sent to the model**. Ava must call the tool **validate_confirmation_code** with the code the user provided; the API compares it to the value in the listing data and returns `{ valid: true }` or `{ valid: false }`. Only after `valid: true` may Ava call get_private_host_data.
   - **API key:** `OPENAI_API_KEY` is read from the **server** environment only; never exposed to the client.
 - **Configuration:** Optional env `OPENAI_CHAT_MODEL` (default: `gpt-4o-mini`). If `OPENAI_API_KEY` is missing, the service returns an error.
+
+### Ava tools (listing data & tickets)
+
+Ava gets listing information and performs ticket actions via **tools** (OpenAI function calling). The tools are defined in `api/src/chat/chat.service.ts`; listing data comes from `api/mocks/listingMock.ts`.
+
+| Tool | Purpose | When to use |
+|------|---------|-------------|
+| **validate_confirmation_code** | Checks if the confirmation code provided by the guest is valid. Takes `code` (string from the user's message). Returns `{ valid: true }` or `{ valid: false }`. The real code is **never** sent to the model; validation is done server-side against the listing data. | When the guest provides a confirmation code (e.g. "Mon code est XYZ"). Call it with that code; only if the result is `valid: true` may you call get_private_host_data. |
+| **get_public_listing_data** | Returns `publicListingData`: description, capacity, bed config, amenities, house rules, check-in/out, activities, etc. | **Anytime** — no confirmation code. Use for general questions about the accommodation (beds, equipment, rules, etc.). |
+| **get_private_host_data** | Returns sensitive data: Wi‑Fi (network, password, troubleshooting procedure), lockbox code, hot tub note, emergency contacts. | **Only after** validate_confirmation_code has returned `valid: true` for the code the guest provided. Never call or disclose this data without that validation. |
+| **create_ticket** | Creates a support ticket (e.g. `listing_id: "DEMO"`, `category: "internet"`). | When the internet issue persists after Wi‑Fi reminder and self-repair steps (step 3 of the internet flow). |
+| **get_ticket** | Returns status of an existing ticket (`created` \| `in_progress` \| `resolved`). | When the guest asks for ticket follow-up or status; inform clearly when status is `resolved`. |
+
+**Confirmation code (security):** The confirmation code is stored only in the listing data (e.g. `privateHostData.stay.confirmationCode` in the mock). It is **never** included in the system prompt or any message to the model. Ava learns whether a code is valid only by calling **validate_confirmation_code** with the code the user sent; the API compares it server-side and returns `valid: true` or `valid: false`.
+
+**Public vs private (critical):**
+
+- **Public** = `get_public_listing_data`. Safe to call on every request when the question is about the listing (no code required).
+- **Private** = `get_private_host_data`. Contains Wi‑Fi credentials, lockbox code, emergency contacts. Ava must **only** call this tool after **validate_confirmation_code** has returned `valid: true` for the code the guest provided.
+
+The mock structure in `api/mocks/listingMock.ts` has two top-level keys: `publicListingData` (always usable) and `privateHostData` (only after code). When replacing the mock with a real API, keep the same semantic split so the tools can be wired to “public” vs “private” endpoints.
 
 ---
 
@@ -199,9 +221,11 @@ Use these for the **NestJS** ticketing API.
 | Ticket category (internet) | `internet` |
 | Ticket statuses | `created`, `in_progress`, `resolved` |
 | Sensitive data | Only after code validation; from `privateHostData` in mock |
+| Confirmation code (AI) | **Never sent to the model**; Ava uses tool **validate_confirmation_code** with the user's code; API returns valid/invalid |
 | Internet flow | 1) Wi‑Fi credentials → 2) Self-repair → 3) Create ticket + follow-up + “resolved” message |
 | Language | **French** — AI, messages, and UI; no translation needed |
 | Chat route | **POST /chat/stream** — body: `messages: [{ content }]` (no role); system prompt versioned in `api/src/chat/prompts/`; rate limit 20 req/60s |
+| Listing data (mock) | `api/mocks/listingMock.ts` — `publicListingData` (public) and `privateHostData` (after code). Ava uses tools **get_public_listing_data** and **get_private_host_data**; see §5. |
 
 ---
 
