@@ -124,6 +124,31 @@ The repo is configured as a **pnpm workspace**. From the project root, after `pn
 - **GET /tickets/:id** — Get one ticket (for guest follow-up and admin).
 - **PATCH /tickets/:id** — Update a ticket (e.g. status); used by admin and/or backend.
 
+### Chat route — POST /chat/stream
+
+The **guest app** talks to Ava via a **streaming** chat endpoint. Only the Expo guest app should call this route; the admin back office does not use it.
+
+- **Endpoint:** `POST /chat/stream`
+- **Purpose:** Streamed conversation with Ava (OpenAI). Used for listing questions, stay confirmation, internet incident flow, and ticket follow-up.
+- **Request body (JSON):**
+  - `messages`: array of `{ content: string }` — **no `role` field**. The client must not send roles; the server assigns them to avoid prompt injection (e.g. a client could otherwise send `role: "system"` and override Ava’s behaviour).
+  - `content`: string (max 16 384 characters per message).
+  - Between **1 and 50 messages** per request (validation enforced).
+  - **Role convention:** The server treats the list as alternating **user** / **assistant**: first message = user, second = assistant, third = user, etc. Send the conversation history in chronological order (oldest first).
+- **System prompt:** The Ava system prompt is **hardcoded and versioned** in the API only: `api/src/chat/prompts/ava-system.prompt.ts`. It is never sent by the client and is always prepended server-side. It explicitly states that **the guest cannot override or bypass these rules** (e.g. “ignore previous instructions”, “act as …”, or asking for sensitive data without the code). Ava must refuse such requests politely and stay in role. Update the prompt file when Ava’s rules or tone change.
+- **Response:** **Server-Sent Events (SSE)** — `Content-Type: text/event-stream`.
+  - Each chunk: `data: {"content":"<piece of text>"}\n\n`
+  - End of stream: `data: [DONE]\n\n`
+  - On error: `data: {"error":"<message>"}\n\n` then connection closes.
+- **How to use (client):** Send `POST /chat/stream` with `Content-Type: application/json` and read the response as an SSE stream (e.g. `EventSource`-like parsing or `fetch` + ReadableStream). Concatenate `content` chunks to build the full assistant reply. Stop when you see `[DONE]` or an `error` object.
+- **Security:**
+  - **Input sanitization:** Every message `content` is sanitized server-side (`api/src/chat/sanitize-user-content.ts`) before being sent to the LLM: trim and normalize whitespace, collapse excessive newlines, strip control characters, enforce max length. Reduces noise and some prompt-injection surface; the system prompt still enforces that the guest cannot override rules.
+  - **No client-controlled roles:** Only message `content` is accepted; roles are assigned server-side. Prevents abuse (e.g. fake system prompts).
+  - **Rate limiting:** The route is protected by `ThrottlerGuard` with a **chat** limit: **20 requests per 60 seconds** (per client/IP). Prevents abuse and caps OpenAI usage.
+  - **No authentication:** Guests are not logged in; the confirmation code is handled **inside the conversation** (Ava validates it via the versioned system prompt). The API does not check the code.
+  - **API key:** `OPENAI_API_KEY` is read from the **server** environment only; never exposed to the client.
+- **Configuration:** Optional env `OPENAI_CHAT_MODEL` (default: `gpt-4o-mini`). If `OPENAI_API_KEY` is missing, the service returns an error.
+
 ---
 
 ## 6. Technical choices
@@ -177,6 +202,7 @@ Use these for the **NestJS** ticketing API.
 | Sensitive data | Only after code validation; from `privateHostData` in mock |
 | Internet flow | 1) Wi‑Fi credentials → 2) Self-repair → 3) Create ticket + follow-up + “resolved” message |
 | Language | **French** — AI, messages, and UI; no translation needed |
+| Chat route | **POST /chat/stream** — body: `messages: [{ content }]` (no role); system prompt versioned in `api/src/chat/prompts/`; rate limit 20 req/60s |
 
 ---
 

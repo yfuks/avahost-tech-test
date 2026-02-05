@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import OpenAI from 'openai';
 import { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
+import { AVA_SYSTEM_PROMPT } from './prompts/ava-system.prompt';
+import { sanitizeUserContent } from './sanitize-user-content';
 import { StreamChatDto } from './dto/stream-chat.dto';
 
 @Injectable()
@@ -19,10 +21,13 @@ export class ChatService {
       throw new Error('OPENAI_API_KEY non configurée');
     }
 
-    const messages: ChatCompletionMessageParam[] = dto.messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
+    const messages: ChatCompletionMessageParam[] = [
+      { role: 'system', content: AVA_SYSTEM_PROMPT },
+      ...dto.messages.map((m, i) => {
+        const role: 'user' | 'assistant' = i % 2 === 0 ? 'user' : 'assistant';
+        return { role, content: sanitizeUserContent(m.content) };
+      }),
+    ];
 
     const stream = await this.openai.chat.completions.create({
       model: process.env.OPENAI_CHAT_MODEL ?? 'gpt-4o-mini',

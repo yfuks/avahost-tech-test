@@ -3,16 +3,13 @@ import {
   ArrayMinSize,
   ArrayMaxSize,
   ValidateNested,
-  IsIn,
   IsString,
   MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
+/** Client sends only content; roles are assigned server-side (alternating user/assistant). */
 export class ChatMessageDto {
-  @IsIn(['system', 'user', 'assistant'])
-  role!: 'system' | 'user' | 'assistant';
-
   @IsString()
   @MaxLength(16_384)
   content!: string;
