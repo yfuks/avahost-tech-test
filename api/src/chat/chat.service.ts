@@ -173,7 +173,10 @@ export class ChatService {
           parse: (input: string) => JSON.parse(input) as CreateTicketArgs,
           function: async (args: unknown) => {
             const a = args as CreateTicketArgs;
-            const ticket = await ticketsService.create(a);
+            const ticket = await ticketsService.create({
+              ...a,
+              conversation_id: conversationId ?? undefined,
+            });
             return { id: ticket.id, status: ticket.status };
           },
         },

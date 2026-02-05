@@ -14,6 +14,7 @@ export interface Ticket {
 export interface CreateTicketInput {
   listing_id: string;
   category: string;
+  conversation_id?: string;
 }
 
 @Injectable()
@@ -37,16 +38,43 @@ export class TicketsService {
 
   async create(input: CreateTicketInput): Promise<Ticket> {
     const supabase = this.ensureClient();
+
+    if (input.conversation_id) {
+      const existing = await supabase
+        .from('tickets')
+        .select('id, listing_id, category, status, updated_at')
+        .eq('conversation_id', input.conversation_id)
+        .in('status', ['created', 'in_progress'])
+        .maybeSingle();
+      if (existing.error) throw new Error(existing.error.message);
+      if (existing.data) return existing.data as Ticket;
+    }
+
     const { data, error } = await supabase
       .from('tickets')
       .insert({
         listing_id: input.listing_id,
         category: input.category,
+        conversation_id: input.conversation_id ?? null,
         status: 'created',
       })
       .select('id, listing_id, category, status, updated_at')
       .single();
-    if (error) throw new Error(error.message);
+    if (error) {
+      if (
+        error.code === '23505' &&
+        input.conversation_id
+      ) {
+        const existing = await supabase
+          .from('tickets')
+          .select('id, listing_id, category, status, updated_at')
+          .eq('conversation_id', input.conversation_id)
+          .in('status', ['created', 'in_progress'])
+          .maybeSingle();
+        if (existing.data) return existing.data as Ticket;
+      }
+      throw new Error(error.message);
+    }
     return data as Ticket;
   }
 
