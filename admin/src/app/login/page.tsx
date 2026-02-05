@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { fetchUserRole } from '@/lib/user';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -23,6 +24,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const supabase = createClient();
+      // Auth: Supabase sign-in only
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -31,7 +33,8 @@ export default function LoginPage() {
         setError(signInError.message === 'Invalid login credentials' ? 'Email ou mot de passe incorrect.' : signInError.message);
         return;
       }
-      const role = (data.user?.app_metadata as { role?: string } | undefined)?.role;
+      // User: require admin role (from public.users)
+      const role = data.user ? await fetchUserRole(supabase, data.user.id) : null;
       if (role !== 'admin') {
         await supabase.auth.signOut();
         setError('Accès réservé aux comptes administrateurs.');

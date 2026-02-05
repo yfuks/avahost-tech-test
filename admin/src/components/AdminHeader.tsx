@@ -1,9 +1,11 @@
 'use client';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { useUser } from '@/contexts/UserContext';
 
 export function AdminHeader() {
-  const { session, signOut } = useAuth();
+  const { signOut } = useAuth();
+  const { user } = useUser();
 
   return (
     <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
@@ -17,9 +19,9 @@ export function AdminHeader() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {session?.user?.email && (
+          {user?.email && (
             <span className="text-sm text-zinc-500 dark:text-zinc-400">
-              {session.user.email}
+              {user.email}
             </span>
           )}
           <button

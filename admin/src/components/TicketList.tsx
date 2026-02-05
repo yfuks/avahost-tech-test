@@ -20,7 +20,7 @@ const STATUS_LABELS: Record<TicketStatus, string> = {
 };
 
 export function TicketList() {
-  const { getAccessToken } = useAuth();
+  const { getAccessToken, isLoading: authLoading } = useAuth();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,22 +32,28 @@ export function TicketList() {
   const [loadingMessages, setLoadingMessages] = useState<string | null>(null);
   const [messagesError, setMessagesError] = useState<string | null>(null);
 
-  const loadTickets = async () => {
+  const loadTickets = useCallback(async () => {
+    const token = getAccessToken();
+    if (!token) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchTickets(getAccessToken());
+      const data = await fetchTickets(token);
       setTickets(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Impossible de charger les tickets');
     } finally {
       setLoading(false);
     }
-  };
+  }, [getAccessToken]);
 
   useEffect(() => {
-    loadTickets();
-  }, []);
+    if (!authLoading && getAccessToken()) {
+      loadTickets();
+    } else if (!authLoading) {
+      setLoading(false);
+    }
+  }, [authLoading, getAccessToken, loadTickets]);
 
   const handleStatusChange = async (ticket: Ticket, newStatus: TicketStatus) => {
     if (ticket.status === newStatus) return;

@@ -1,10 +1,8 @@
 -- Seed data for local development (optional)
 -- Example: insert into public.tickets (listing_id, category, status) values ('DEMO', 'internet', 'created');
 
--- Default admin user for back office (local dev)
+-- Default admin: auth user + app user (public.users) for back office
 -- Email: admin@avahost.local / Password: Admin123!
--- Requires pgcrypto for password hashing.
--- Auth expects some columns to be non-null (e.g. token fields as empty string) to avoid "Database error querying schema".
 create extension if not exists pgcrypto;
 
 do $$
@@ -37,7 +35,7 @@ begin
     'admin@avahost.local',
     v_encrypted_pw,
     now(),
-    '{"role":"admin","provider":"email","providers":["email"]}'::jsonb,
+    '{"provider":"email","providers":["email"]}'::jsonb,
     '{}'::jsonb,
     now(),
     now(),
@@ -67,4 +65,7 @@ begin
     now(),
     now()
   );
+
+  insert into public.users (id, role)
+  values (v_user_id, 'admin');
 end$$;

@@ -1,8 +1,9 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { fetchUserRole } from '@/lib/user';
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
+  const response = NextResponse.next({
     request: { headers: request.headers },
   });
 
@@ -12,6 +13,7 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
+  // Auth: Supabase session only
   const supabase = createServerClient(url, anonKey, {
     cookies: {
       getAll() {
@@ -29,8 +31,10 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // User: role from public.users (separate from auth)
+  const role = user ? await fetchUserRole(supabase, user.id) : null;
+  const isAdmin = role === 'admin';
   const isLoginPage = request.nextUrl.pathname === '/login';
-  const isAdmin = (user?.app_metadata as { role?: string } | undefined)?.role === 'admin';
 
   if (!user && !isLoginPage) {
     const redirect = new URL('/login', request.url);

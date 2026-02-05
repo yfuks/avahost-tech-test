@@ -9,13 +9,12 @@ import { Request } from 'express';
 export interface AdminUserPayload {
   id: string;
   email?: string;
-  app_metadata?: { role?: string };
 }
 
 /**
- * Guard that requires a valid Supabase JWT with app_metadata.role = 'admin'
- * for admin-only ticket routes. Validates the token by calling Supabase Auth API
- * (no JWT secret needed; works with any Supabase signing key setup).
+ * Guard that requires a valid Supabase JWT and an admin role in public.users
+ * for admin-only ticket routes. Validates the token via Supabase Auth, then
+ * checks public.users (single source of truth for role).
  */
 @Injectable()
 export class AdminGuard implements CanActivate {
@@ -41,20 +40,39 @@ export class AdminGuard implements CanActivate {
     }
 
     try {
-      const res = await fetch(`${url}/auth/v1/user`, {
+      const authRes = await fetch(`${url}/auth/v1/user`, {
         headers: {
           Authorization: `Bearer ${token}`,
           apikey: apiKey,
         },
       });
-      if (!res.ok) {
+      if (!authRes.ok) {
         throw new UnauthorizedException('Token invalide ou expiré');
       }
-      const body = (await res.json()) as
+      const authBody = (await authRes.json()) as
         | AdminUserPayload
         | { user: AdminUserPayload };
-      const user = 'user' in body ? body.user : body;
-      const role = user?.app_metadata?.role;
+      const user = 'user' in authBody ? authBody.user : authBody;
+      const userId = user?.id;
+      if (!userId) {
+        throw new UnauthorizedException('Token invalide ou expiré');
+      }
+
+      const usersRes = await fetch(
+        `${url}/rest/v1/users?id=eq.${userId}&select=role`,
+        {
+          headers: {
+            apikey: apiKey,
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+      if (!usersRes.ok) {
+        throw new UnauthorizedException('Accès réservé aux administrateurs');
+      }
+      const usersJson = (await usersRes.json()) as { role: string }[];
+      const role = usersJson?.[0]?.role;
       if (role !== 'admin') {
         throw new UnauthorizedException('Accès réservé aux administrateurs');
       }
