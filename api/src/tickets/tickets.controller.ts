@@ -10,8 +10,10 @@ import {
   NotFoundException,
   Sse,
   MessageEvent,
+  UseGuards,
 } from '@nestjs/common';
 import { map, Observable } from 'rxjs';
+import { AdminGuard } from '../auth/admin.guard';
 import { ConversationService } from '../conversations/conversation.service';
 import { TicketsService, type TicketStatus } from './tickets.service';
 import { TicketUpdatesService } from './ticket-updates.service';
@@ -19,6 +21,7 @@ import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 
 @Controller('tickets')
+@UseGuards(AdminGuard)
 export class TicketsController {
   constructor(
     private readonly ticketsService: TicketsService,

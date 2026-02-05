@@ -24,7 +24,10 @@ supabase status
 - **Studio:** http://127.0.0.1:54323
 - **DB direct:** `postgresql://postgres:postgres@127.0.0.1:54322/postgres`
 
-Run `supabase status` to see the exact URLs and the `anon` / `service_role` keys. Point the NestJS API (e.g. via env) to this URL and use the service role key for server-side access.
+Run `supabase status` to see the exact URLs and keys. In that output you’ll find:
+
+- **Publishable** — for the admin app (`NEXT_PUBLIC_SUPABASE_ANON_KEY`)
+- **Secret** — for the API (`SUPABASE_SERVICE_ROLE_KEY`); the API uses it for DB access and to validate admin tokens via the Auth API (no separate JWT secret needed).
 
 ## Migrations
 
@@ -35,3 +38,10 @@ Run `supabase status` to see the exact URLs and the `anon` / `service_role` keys
 ## Seed
 
 Optional seed data: edit `supabase/seed.sql`. It runs on `supabase start` and `supabase db reset`.
+
+A **default admin user** is created by the seed for the back office:
+
+- **Email:** `admin@avahost.local`
+- **Password:** `Admin123!`
+
+Use these credentials to log in to the admin panel. The API validates admin tokens by calling the Supabase Auth API; it only needs `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (the **Secret** from `supabase status`).

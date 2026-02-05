@@ -11,8 +11,18 @@ const getBaseUrl = () => {
   return process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 };
 
-export async function fetchTickets(): Promise<Ticket[]> {
-  const res = await fetch(`${getBaseUrl()}/tickets`);
+function headers(accessToken: string | null): HeadersInit {
+  const h: HeadersInit = { 'Content-Type': 'application/json' };
+  if (accessToken) {
+    (h as Record<string, string>)['Authorization'] = `Bearer ${accessToken}`;
+  }
+  return h;
+}
+
+export async function fetchTickets(accessToken: string | null): Promise<Ticket[]> {
+  const res = await fetch(`${getBaseUrl()}/tickets`, {
+    headers: headers(accessToken),
+  });
   if (!res.ok) {
     throw new Error(`Erreur ${res.status}: ${res.statusText}`);
   }
@@ -20,10 +30,12 @@ export async function fetchTickets(): Promise<Ticket[]> {
 }
 
 export async function fetchConversationMessages(
-  ticketId: string
+  ticketId: string,
+  accessToken: string | null
 ): Promise<ConversationMessage[]> {
   const res = await fetch(
-    `${getBaseUrl()}/tickets/${ticketId}/conversation-messages`
+    `${getBaseUrl()}/tickets/${ticketId}/conversation-messages`,
+    { headers: headers(accessToken) }
   );
   if (!res.ok) {
     throw new Error(`Erreur ${res.status}: ${res.statusText}`);
@@ -33,11 +45,12 @@ export async function fetchConversationMessages(
 
 export async function updateTicketStatus(
   id: string,
-  status: TicketStatus
+  status: TicketStatus,
+  accessToken: string | null
 ): Promise<Ticket> {
   const res = await fetch(`${getBaseUrl()}/tickets/${id}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: headers(accessToken),
     body: JSON.stringify({ status }),
   });
   if (!res.ok) {

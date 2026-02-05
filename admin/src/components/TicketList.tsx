@@ -6,6 +6,7 @@ import type {
   Ticket,
   TicketStatus,
 } from '@/types/tickets';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   fetchConversationMessages,
   fetchTickets,
@@ -19,6 +20,7 @@ const STATUS_LABELS: Record<TicketStatus, string> = {
 };
 
 export function TicketList() {
+  const { getAccessToken } = useAuth();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +36,7 @@ export function TicketList() {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchTickets();
+      const data = await fetchTickets(getAccessToken());
       setTickets(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Impossible de charger les tickets');
@@ -51,7 +53,7 @@ export function TicketList() {
     if (ticket.status === newStatus) return;
     setUpdatingId(ticket.id);
     try {
-      const updated = await updateTicketStatus(ticket.id, newStatus);
+      const updated = await updateTicketStatus(ticket.id, newStatus, getAccessToken());
       setTickets((prev) =>
         prev.map((t) => (t.id === updated.id ? updated : t))
       );
@@ -67,7 +69,7 @@ export function TicketList() {
     setLoadingMessages(ticketId);
     setMessagesError(null);
     try {
-      const messages = await fetchConversationMessages(ticketId);
+      const messages = await fetchConversationMessages(ticketId, getAccessToken());
       setMessagesByTicket((prev) => ({ ...prev, [ticketId]: messages }));
     } catch (e) {
       setMessagesError(
@@ -76,7 +78,7 @@ export function TicketList() {
     } finally {
       setLoadingMessages(null);
     }
-  }, [messagesByTicket]);
+  }, [messagesByTicket, getAccessToken]);
 
   const toggleHistory = (ticket: Ticket) => {
     if (expandedId === ticket.id) {
