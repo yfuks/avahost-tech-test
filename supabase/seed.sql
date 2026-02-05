@@ -1,0 +1,2 @@
+-- Seed data for local development (optional)
+-- Example: insert into public.tickets (listing_id, category, status) values ('DEMO', 'internet', 'created');

@@ -74,6 +74,22 @@ Implement the flow so that each “relance” (follow-up) from the user advances
 | **API** | **NestJS** | Ticketing API with the 3 endpoints below. |
 | **Admin / back office** | **Next.js** | Simple UI (or CLI) so staff can change ticket status. Guest app must reflect status changes (e.g. via polling or similar). |
 
+### Repository layout
+
+```
+avahost-tech-test/
+├── guest-app/     # Expo app (Chat screen, Ava, confirmation code, tickets)
+├── api/           # NestJS ticketing API (POST/GET/PATCH tickets)
+├── admin/         # Next.js back office (list tickets, PATCH status)
+├── supabase/      # Local Supabase (migrations, config, seed)
+└── AGENTS.md
+```
+
+- **Guest app:** `guest-app/` — Expo (blank template). Run: `cd guest-app && npm run ios` (or `android` / `web`).
+- **API:** `api/` — NestJS. Run: `cd api && npm run start` (dev: `npm run start:dev`).
+- **Admin:** `admin/` — Next.js (App Router, TypeScript, Tailwind). Run: `cd admin && npm run dev`.
+- **Local Supabase:** From project root, run `supabase start` (requires Docker). See `supabase/README.md` for URLs and keys.
+
 ### Supabase — `tickets` table
 
 - `id`: uuid (PK)
